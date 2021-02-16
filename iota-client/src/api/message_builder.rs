@@ -3,6 +3,7 @@
 
 use crate::{api::address::search_address, Client, ClientMiner, Error, Result, Seed};
 
+use bee_common::packable::Packable;
 use bee_message::prelude::*;
 use bee_pow::providers::ProviderBuilder;
 use bee_rest_api::types::{AddressDto, OutputDto};
@@ -201,7 +202,7 @@ impl<'a> ClientMessageBuilder<'a> {
         }
 
         let mut paths = Vec::new();
-        let mut essence = RegularEssence::builder();
+        let mut essence = TransactionPayloadEssence::builder();
         let mut address_index_recorders = Vec::new();
 
         match self.inputs.clone() {
@@ -422,9 +423,11 @@ impl<'a> ClientMessageBuilder<'a> {
             let indexation_payload = IndexationPayload::new(index, &self.data.clone().unwrap_or_default())?;
             essence = essence.with_payload(Payload::Indexation(Box::new(indexation_payload)))
         }
-        let regular_essence = essence.finish()?;
-        let essence = Essence::Regular(regular_essence);
-        let hashed_essence = essence.hash();
+        let essence = essence.finish()?;
+        let mut serialized_essence = Vec::new();
+        essence
+            .pack(&mut serialized_essence)
+            .map_err(|_| Error::InvalidParameter("inputs".to_string()))?;
         let mut unlock_blocks = Vec::new();
         let mut signature_indexes = HashMap::<String, usize>::new();
         address_index_recorders.sort_by(|a, b| a.input.cmp(&b.input));
@@ -445,7 +448,7 @@ impl<'a> ClientMessageBuilder<'a> {
                     .generate_private_key(&recorder.address_path)?;
                 let public_key = private_key.public_key().to_compressed_bytes();
                 // The block should sign the entire transaction essence part of the transaction payload
-                let signature = Box::new(private_key.sign(&hashed_essence).to_bytes());
+                let signature = Box::new(private_key.sign(&serialized_essence).to_bytes());
                 unlock_blocks.push(UnlockBlock::Signature(SignatureUnlock::Ed25519(Ed25519Signature::new(
                     public_key, signature,
                 ))));
