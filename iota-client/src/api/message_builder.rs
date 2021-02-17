@@ -212,22 +212,33 @@ impl<'a> ClientMessageBuilder<'a> {
                         if !output.is_spent {
                             let (output_amount, output_address) = match output.output {
                                 OutputDto::Treasury(_) => panic!("Can't be used as input"),
-                                OutputDto::SignatureLockedSingle(r) => match r.address {
-                                    AddressDto::Ed25519(addr) => {
-                                        let output_address = Address::from(Ed25519Address::from_str(&addr.address)?);
-                                        // Only add dust
-                                        if r.amount < 1_000_000 {
-                                            dust_and_allowance_recorders.push((r.amount, output_address, false));
+                                OutputDto::SignatureLockedOutputDto(r) => match r.kind {
+                                    0 => {
+                                        match r.address {
+                                            AddressDto::Ed25519(addr) => {
+                                                let output_address =
+                                                    Address::from(Ed25519Address::from_str(&addr.address)?);
+                                                // Only add dust
+                                                if r.amount < 1_000_000 {
+                                                    dust_and_allowance_recorders.push((
+                                                        r.amount,
+                                                        output_address,
+                                                        false,
+                                                    ));
+                                                }
+                                                (r.amount, output_address)
+                                            }
                                         }
-                                        (r.amount, output_address)
                                     }
-                                },
-                                OutputDto::SignatureLockedDustAllowance(r) => match r.address {
-                                    AddressDto::Ed25519(addr) => {
-                                        let output_address = Address::from(Ed25519Address::from_str(&addr.address)?);
-                                        dust_and_allowance_recorders.push((r.amount, output_address, false));
-                                        (r.amount, output_address)
-                                    }
+                                    1 => match r.address {
+                                        AddressDto::Ed25519(addr) => {
+                                            let output_address =
+                                                Address::from(Ed25519Address::from_str(&addr.address)?);
+                                            dust_and_allowance_recorders.push((r.amount, output_address, false));
+                                            (r.amount, output_address)
+                                        }
+                                    },
+                                    _ => panic!("Outputtype not supported"),
                                 },
                             };
                             total_already_spent += output_amount;
@@ -305,22 +316,26 @@ impl<'a> ClientMessageBuilder<'a> {
                         for (_offset, output) in outputs.into_iter().enumerate() {
                             let output_amount = match output.output {
                                 OutputDto::Treasury(_) => panic!("Can't be used as input"),
-                                OutputDto::SignatureLockedSingle(r) => match r.address {
-                                    AddressDto::Ed25519(addr) => {
-                                        if r.amount < 1_000_000 {
+                                OutputDto::SignatureLockedOutputDto(r) => match r.kind {
+                                    0 => match r.address {
+                                        AddressDto::Ed25519(addr) => {
+                                            if r.amount < 1_000_000 {
+                                                let output_address =
+                                                    Address::from(Ed25519Address::from_str(&addr.address)?);
+                                                dust_and_allowance_recorders.push((r.amount, output_address, false));
+                                            }
+                                            r.amount
+                                        }
+                                    },
+                                    1 => match r.address {
+                                        AddressDto::Ed25519(addr) => {
                                             let output_address =
                                                 Address::from(Ed25519Address::from_str(&addr.address)?);
                                             dust_and_allowance_recorders.push((r.amount, output_address, false));
+                                            r.amount
                                         }
-                                        r.amount
-                                    }
-                                },
-                                OutputDto::SignatureLockedDustAllowance(r) => match r.address {
-                                    AddressDto::Ed25519(addr) => {
-                                        let output_address = Address::from(Ed25519Address::from_str(&addr.address)?);
-                                        dust_and_allowance_recorders.push((r.amount, output_address, false));
-                                        r.amount
-                                    }
+                                    },
+                                    _ => panic!("Outputtype not supported"),
                                 },
                             };
                             match output.is_spent {
@@ -554,14 +569,15 @@ async fn is_dust_allowed(client: &Client, address: Bech32Address, outputs: Vec<(
     for output_metadata in address_outputs_metadata {
         match output_metadata.output {
             OutputDto::Treasury(_) => {}
-            OutputDto::SignatureLockedDustAllowance(d_a_o) => {
-                dust_allowance_balance += d_a_o.amount as i64;
-            }
-            OutputDto::SignatureLockedSingle(s_o) => {
-                if s_o.amount < 1_000_000 {
-                    dust_outputs_amount += 1;
+            OutputDto::SignatureLockedOutputDto(d) => match d.kind {
+                0 => dust_allowance_balance += d.amount as i64,
+                1 => {
+                    if d.amount < 1_000_000 {
+                        dust_outputs_amount += 1;
+                    }
                 }
-            }
+                _ => panic!("Outputype not supported"),
+            },
         }
     }
 
