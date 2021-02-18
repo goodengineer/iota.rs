@@ -21,7 +21,6 @@ impl Seed {
     /// Generate private key with a BIP32Path
     pub fn generate_private_key(&self, path: &BIP32Path) -> Result<SecretKey> {
         let subseed = derive_key_from_path(&self.to_le_bytes(), Curve::Ed25519, path)?.key;
-
         Ok(SecretKey::from_le_bytes(subseed)?)
     }
 
