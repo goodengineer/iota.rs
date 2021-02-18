@@ -6,6 +6,7 @@ use iota::{Client, MessageId};
 use std::time::Duration;
 use tokio::time::sleep;
 
+const REATTACH_PROMOTE_UNTIL_CONF_SL_TIME: Duration = Duration::from_secs(5);
 #[tokio::main]
 async fn main() {
     let iota = Client::builder() // Crate a client instance builder
@@ -44,6 +45,6 @@ async fn reattach_promote_until_confirmed(message_id: &MessageId, iota: &Client)
         } else if let Ok(msg_id) = iota.reattach(&message_id).await {
             println!("Reattached or promoted {}", msg_id.0);
         }
-        sleep(Duration::from_secs(5)).await;
+        sleep(REATTACH_PROMOTE_UNTIL_CONF_SL_TIME).await;
     }
 }
