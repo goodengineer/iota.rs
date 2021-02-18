@@ -35,7 +35,6 @@ pub use seed::*;
 mod async_runtime {
     use once_cell::sync::OnceCell;
     use tokio::runtime::Runtime;
-
     use std::sync::Mutex;
 
     static RUNTIME: OnceCell<Mutex<Runtime>> = OnceCell::new();
